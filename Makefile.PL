@@ -4,14 +4,12 @@ use ExtUtils::MakeMaker;
 WriteMakefile(
     'NAME'	=> 'SAP::BC::XMLRFC',
     'VERSION_FROM' => 'lib/SAP/BC/XMLRFC.pm', # finds $VERSION
-#    'LIBS'	=> [''],   # e.g., '-lm' 
     'DEFINE'	=> '',     # e.g., '-DHAVE_SOMETHING' 
     'INC'	=> '',     # e.g., '-I/usr/include/other' 
     'PREREQ_PM'	=> {'LWP::UserAgent' => 1.68,
                     'LWP::Simple' => 1.32,
                     'HTTP::Request' => 1.26,
                     'XML::Parser' => 2.27},
-#	            'SAP::BC' => 0.01},
     clean	=> { 'FILES' },
     dist	=> { 'TARFLAGS' => 'cvf',
 		     'COMPRESS' => 'gzip -9f',

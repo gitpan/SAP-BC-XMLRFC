@@ -1,11 +1,12 @@
 #!/usr/bin/perl
+use lib '../lib';
 use strict;
 use SAP::BC::XMLRFC;
 
-my $userid = '';
-my $passwd = '';
-my $server="http://rooster.local.net:5555";
-my $service = 'test:ReadReport';
+my $userid = 'Administrator';
+my $passwd = 'manage';
+my $server="http://kogut.local.net:5555";
+my $service = 'WAS:readReport';
 
 die "no report name supplied - eg. usage: $0 SAPLGRAP " unless $ARGV[0];
 

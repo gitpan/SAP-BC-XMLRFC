@@ -1,13 +1,13 @@
 #!/usr/bin/perl
 use strict;
-#use lib '/root/code/sapbc';
+use lib '../lib';
 use SAP::BC::XMLRFC;
 
-my $userid = '';
-my $passwd = '';
-my $server="http://rooster.local.net:5555";
-my $service = 'test:ReadReport';
-my $service2 = 'test:ReadTable';
+my $userid = 'Administrator';
+my $passwd = 'manage';
+my $server="http://kogut.local.net:5555";
+my $service = 'WAS:readReport';
+my $service2 = 'WAS:readTable';
 
 my $xmlrfc = new SAP::BC::XMLRFC( SERVER => $server,
 				  USERID => $userid,
@@ -35,7 +35,7 @@ while ( my $row = $i->QTAB->nextrow ){
 print "\n\nGet a table dynamically:\n";
 my $i2 = $xmlrfc->Iface( $service2 );
 
-$i2->Parm('QUERY_TABLE')->value('INSTVERS');
+$i2->Parm('QUERY_TABLE')->value('T000');
 $i2->Parm('ROWCOUNT')->value('1');
 $i2->Parm('ROWSKIPS')->value('0');
 

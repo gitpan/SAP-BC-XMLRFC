@@ -1,4 +1,5 @@
 #!/usr/bin/perl
+use lib '../lib';
 use SAP::BC::XMLRFC;
 use Thread qw(async);
 use Thread::Queue;
@@ -8,13 +9,13 @@ $THREADS = 1;
 $TOT = 0;
 $BIG = 0;
 
-my $userid = '';
-my $passwd = '';
-my $server="http://rooster.local.net:5555";
-my $service = 'test:ReadTable';
-my $service1 = 'test:ReadReport';
+my $userid = 'Administrator';
+my $passwd = 'manage';
+my $server="http://kogut.local.net:5555";
+my $service = 'WAS:readTable';
+my $service1 = 'WAS:readReport';
 my $tab = 'TRDIR';
-my $tab1 = 'INSTVERS';
+my $tab1 = 'T000';
 
 #  Create the queue of SAP Reports to be processed
 my $Q = new Thread::Queue;

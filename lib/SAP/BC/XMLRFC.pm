@@ -10,6 +10,10 @@ use LWP::UserAgent;
 use XML::Parser;
 
 
+use Data::Dumper;
+
+
+
 use vars qw($VERSION @ISA @EXPORT @EXPORT_OK $AUTOLOAD);
 
 require Exporter;
@@ -41,7 +45,7 @@ my $_out = "";
 my $_cell = "";
 my $_tagre = "";
 
-$VERSION = '0.04';
+$VERSION = '0.05';
 
 # Preloaded methods go here.
 
@@ -62,7 +66,11 @@ sub new {
   map { delete $self->{$_} if ! exists $VALID->{$_} } keys %{$self};
 
 # check that the service exists
-  $self->{BC} = new SAP::BC( $self->{SERVER} );
+  $self->{BC} = new SAP::BC( 
+                             server => $self->{SERVER},
+                             user   => $self->{USERID},
+			     password => $self->{PASSWD}
+			     );
 # create the object and return it
   bless ($self, $class);
   return $self;
@@ -81,6 +89,11 @@ sub Iface{
   my $ua = LWP::UserAgent->new();
   $ua->agent('Mozilla/5.0');
 
+#  print STDERR "REQ: ".$self->{SERVER}.$lookup."\?\$call\=true\&serverName\=".
+#      $self->{BC}->services->{$service}->{sapsys}.
+#	  "\&\$rfcname\_search\=\&groupname=\&\$rfcname\=".
+#	      $self->{BC}->services->{$service}->{rfcname}.
+#		  "\&table=\&submit\=RFC\-XML" ."\n";
   my $req = new HTTP::Request('GET', $self->{SERVER}.$lookup."\?\$call\=true\&serverName\=".
       $self->{BC}->services->{$service}->{sapsys}.
 	  "\&\$rfcname\_search\=\&groupname=\&\$rfcname\=".
@@ -103,19 +116,19 @@ sub Iface{
 
   my $r =  $p->parse( $xml_template );
 
-#use Data::Dumper;
-#print Dumper( $r );  
+# print Dumper( $r );  
   my $intrfc = $self->{BC}->services->{$service}->{rfcname};
   $intrfc =~ s/\//\_\-/g;
   die "Interface lookup failed for $service " unless
-      $r->[1]->[4]->[3] eq "rfc:".$intrfc;  
+      $r->[1]->[8]->[3] eq "rfc:".$intrfc;  
 
   my $iface = new SAP::BC::Iface( NAME => $service );
 
 #  shift over to the interface definition part of the doc
-  $r = $r->[1]->[4]->[4]; 
+  $r = $r->[1]->[8]->[4]; 
   my $c = -1;
   while (my $parmname = $r->[$c+=4]){
+#      print STDERR " Parm: $parmname \n";
       my $parm = $r->[$c + 1];
 # determine a table or structure or simple parameter
       if ( $parm->[3] =~ /\w/){
@@ -153,6 +166,7 @@ sub Iface{
       };
   };
 
+#  print STDERR "Iface: ".Dumper($iface);
   return $iface;
 
 }
@@ -172,6 +186,9 @@ sub xmlrfc {
   $ua->agent('Mozilla/5.0');
 
   my $service = $iface->name();
+#  print STDERR "The services- $service -: ".Dumper( $self->{BC}->services);
+  $intrfc = $self->{BC}->services->{$service}->{rfcname};
+  $intrfc =~ s/\//\_\-/g;
   $service =~ s/\:/\//;
   my $req = new HTTP::Request('POST', $self->{SERVER}."/invoke/".$service);
   $req->header('Content-Type' => 'application/x-sap.rfc',
@@ -179,20 +196,21 @@ sub xmlrfc {
 
   $req->authorization_basic($self->{USERID},$self->{PASSWD});
 
-  my $start_content = <<ENDOF;
+  my $start_content = <<ENDOFSTART;
 <?xml version="1.0" encoding="iso-8859-1"?>
-
 <sap:Envelope xmlns:sap="urn:sap-com:document:sap" version="1.0">
+  <sap:Header xmlns:rfcprop="urn:sap-com:document:sap:rfc:properties">
+      <saptr:From xmlns:saptr="urn:sap-com:document:sap:transport">BC1</saptr:From>
+      <saptr:To xmlns:saptr="urn:sap-com:document:sap:transport">BC2</saptr:To>
+  </sap:Header>
   <sap:Body>
-ENDOF
+ENDOFSTART
 
-    my $end_content = <<ENDOF;
+    my $end_content = <<ENDOFEND;
   </sap:Body>
 </sap:Envelope>
-ENDOF
+ENDOFEND
 
-    $intrfc = $self->{BC}->services->{$service}->{rfcname};
-  $intrfc =~ s/\//\_\-/g;
   $xml_out = "<rfc:".$intrfc.
       " xmlns:rfc=\"urn:sap-com:document:sap:rfc:functions\">\n";
 
@@ -221,7 +239,7 @@ ENDOF
        } ( $iface->Tabs );
 
   $xml_out .= "<\/rfc:".$intrfc.">\n";
-#  print $xml_out;
+#  print STDERR "the constructed interface: ".$start_content.$xml_out.$end_content;
 
   $req->content($start_content.$xml_out.$end_content); 
 

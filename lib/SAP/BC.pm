@@ -43,7 +43,7 @@ use HTTP::Request;
 
 use vars qw($VERSION %BC);
 
-$VERSION = '0.01';
+$VERSION = '0.02';
 
 # Not sure about the usefulness of this hash, yet, but I'll
 # keep it for now. It keeps the BC implemention details visible.
@@ -65,13 +65,13 @@ Use this to create a BC instance. You can pass either a single
 argument, which is the URL of the BC you want to manipulate, or
 a list of values, like this:
 
- my $bc = SAP::BC->new('http://karma:5555');
+ my $bc = SAP::BC->new('http://karma:5555'); not allowed after BC 4.x
 
  or
 
  my $bc = SAP::BC->new( 'server'   => 'http://karma',
                         'user'     => 'username',
-                        'password' => 'secret' );
+                        'password' => 'secret' ); <= manditory after BC 4.x
 
 where the user and password parameters are the ones for the
 SAP BC itself. 
@@ -149,12 +149,23 @@ sub SAP_systems {
     $self->{'SAP_systems'} = [];
 
 #   Call service on BC
-    my $res = get "$self->{'server'}$BC{'listServers'}"
-      or die "Cannot retrieve server list: $!\n";
+#    my $res = get "$self->{'server'}$BC{'listServers'}"
+#      or die "Cannot retrieve server list: $!\n";
+#   Call service on BC
+    $self->_prime_ua();
+    my $req = HTTP::Request->new('GET', "$self->{'server'}$BC{'listServers'}");
+    $req->authorization_basic($self->authentication);
+    my $res =  $self->{'ua'}->request($req)->content()
+        or die "Cannot retrieve server list: $!\n";
+    $res =~ s/\n//g;
+    #print STDERR "The Server List: ".$res."\n";
 
 #   Parse results for server names
-    foreach (grep(/$BC{'listServiceMaps'}/,split("\n",$res))) {
-      my ($sapsys) = $_ =~ m/$BC{'listServiceMaps'}\?serverName=(\w{3})/;
+    #foreach (grep(/$BC{'listServiceMaps'}/,split("\n",$res))) {
+    foreach (grep(/\>NAME/,split(/<\/TR>/,$res))) {
+#     print STDERR "LINE: $_ \n";
+      #my ($sapsys) = $_ =~ m/$BC{'listServiceMaps'}\?serverName=(\w{3})/;
+      my ($sapsys) = $_ =~ m/(\w+)<\/TD>.*?$/;
       push(@{$self->{'SAP_systems'}},$sapsys);
     }
 
@@ -211,17 +222,31 @@ sub services {
 
 #   Invoke the map list service for each of the SAP systems
     foreach my $sys (@{$sys_list}) {
-      my $res = get "$self->{'server'}$BC{'listServiceMaps'}?serverName=$sys" 
-        or die "Cannot retrieve Service Map for $sys: $!\n";
+      $self->_prime_ua();
+      my $req = HTTP::Request->new('GET', "$self->{'server'}$BC{'listServiceMaps'}?serverName=$sys");
+      $req->authorization_basic($self->authentication);
+      my $res =  $self->{'ua'}->request($req)->content()
+          or die "Cannot retrieve Service Map for $sys: $!\n";
+      $res =~ s/\n//g;
+#      print STDERR "SERVICE LIST: $res \n";
+      #my $res = get "$self->{'server'}$BC{'listServiceMaps'}?serverName=$sys" 
+      #  or die "Cannot retrieve Service Map for $sys: $!\n";
 
-      foreach my $serviceMap (grep(/editServiceMap.*svcname/,split("\n",$res))) {
-        my ($sapsys, $rfcname, $service) = 
-	        $serviceMap =~ m/^.*?serverName\=(.*?)\&.*?rfcname\=(.*?)\&.*?svcname\=(.*?)\&.*$/;
-  
-        $self->{'services'}->{$service} = {
-                                            'sapsys'  => $sapsys,
+      #foreach my $serviceMap (grep(/editServiceMap.*svcname/,split("\n",$res))) {
+      while  ( $res =~ m/serverName<\/b><\/td><td>([\w_]+).*?rfcname<\/b><\/td><td>(\w+).*?servicePath<\/b><\/td><td>(\w+).*?service<\/b><\/td><td>(\w+).*?package<\/b><\/td><td>(\w+)/gi) {
+      my ( $srvname, $rfcname, $srvpath, $service, $package ) = ( $1, $2, $3, $4, $5 );
+#        print STDERR "LINE: $srvname $rfcname $srvpath $service $package \n";
+#        my ($sapsys, $rfcname, $service) = 
+#	        $serviceMap =~ m/^.*?serverName\=(.*?)\&.*?rfcname\=(.*?)\&.*?svcname\=(.*?)\&.*$/;
+        $self->{'services'}->{$srvpath.':'.$service} = {
+                                            'sapsys'  => $srvname,
                                             'rfcname' => $rfcname,
                                           };
+  
+#        $self->{'services'}->{$service} = {
+#                                            'sapsys'  => $sapsys,
+#                                            'rfcname' => $rfcname,
+#                                          };
 
       }
 
