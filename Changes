@@ -1,0 +1,7 @@
+Revision history for Perl extension SAP::BC::XMLRFC.
+
+0.01  Mon May  22 06:00:00 200
+	- original version; created by me
+0.03 Mon Jul 17 22:00:58 BST 2000
+	- change distribution arround to use a single package file to hold Iface, Tab, Parm, and Struct - to make it much easier to maintain and more compact.
+	- add auto loading for the Parameter/Table names, and create an empty destroy method to stop Perl 5.6 errors with autoload.
