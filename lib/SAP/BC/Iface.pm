@@ -14,7 +14,7 @@ my $VALID = {
    EXCEPTIONS => 1
 };
 
-$VERSION = '0.02';
+$VERSION = '0.03';
 
 # empty destroy method to stop capture by autoload
 sub DESTROY {
@@ -642,7 +642,7 @@ sub Name {
 sub Fields {
 
   my $self = shift;
-  return  sort { $self->{FIELDS}->{$a}->{POSITION} cmp
+  return  sort { $self->{FIELDS}->{$a}->{POSITION} <=>
 		  $self->{FIELDS}->{$b}->{POSITION} }
 		  keys %{$self->{FIELDS}};
 

@@ -6,6 +6,7 @@ use strict;
 use SAP::BC;
 use SAP::BC::Iface;
 use HTTP::Request;
+use HTTP::Cookies;
 use LWP::UserAgent;
 use XML::Parser;
 
@@ -45,7 +46,7 @@ my $_out = "";
 my $_cell = "";
 my $_tagre = "";
 
-$VERSION = '0.05';
+$VERSION = '0.06';
 
 # Preloaded methods go here.
 
@@ -86,8 +87,8 @@ sub Iface{
   die "Service does not exist - $service " if ! exists $self->{BC}->services->{$service};
   my $lookup = "/invoke/sap.rfc/createTemplate";
 
-  my $ua = LWP::UserAgent->new();
-  $ua->agent('Mozilla/5.0');
+  $self->{BC}->_prime_ua();
+  my $ua = $self->{BC}->{ua};
 
 #  print STDERR "REQ: ".$self->{SERVER}.$lookup."\?\$call\=true\&serverName\=".
 #      $self->{BC}->services->{$service}->{sapsys}.
@@ -109,14 +110,13 @@ sub Iface{
   my $content = $res->content;
   die "RFC_SYSTEM_FAILURE in interface lookup" if $content =~ /RFC_ERROR/s;
   my ( $xml_template ) = 
-      $content =~ /^.*\<textarea .*?\>(.*)\<\/textarea\>.*$/s;
+      $content =~ /^.*xmlData<\/B><\/TD>\s*<TD>(.*?)<\/TD>.*$/s;
 
   my $p = new XML::Parser( Style => 'Tree',
 			 ErrorContext => 3 );
 
   my $r =  $p->parse( $xml_template );
 
-# print Dumper( $r );  
   my $intrfc = $self->{BC}->services->{$service}->{rfcname};
   $intrfc =~ s/\//\_\-/g;
   die "Interface lookup failed for $service " unless
@@ -182,8 +182,8 @@ sub xmlrfc {
   die "this is not an Interface Object!" 
      unless $ref eq "SAP::BC::Iface" and $ref;
 
-  my $ua = LWP::UserAgent->new();
-  $ua->agent('Mozilla/5.0');
+  $self->{BC}->_prime_ua();
+  my $ua = $self->{BC}->{ua};
 
   my $service = $iface->name();
 #  print STDERR "The services- $service -: ".Dumper( $self->{BC}->services);
@@ -191,8 +191,8 @@ sub xmlrfc {
   $intrfc =~ s/\//\_\-/g;
   $service =~ s/\:/\//;
   my $req = new HTTP::Request('POST', $self->{SERVER}."/invoke/".$service);
-  $req->header('Content-Type' => 'application/x-sap.rfc',
-	       'Host' => 'my.source.host.net');
+  $req->header('Content-Type' => 'application/x-sap.rfc');
+	       #'Host' => 'my.source.host.net');
 
   $req->authorization_basic($self->{USERID},$self->{PASSWD});
 
@@ -245,7 +245,7 @@ ENDOFEND
 
   my $res = $ua->request($req);
 
-  die " RFC-XML call failed: " . $res->message() if !$res->is_success();
+  die " RFC-XML call failed: " . $res->as_string() if !$res->is_success();
 
   $xml_out = $res->content;
 #  print $xml_out;
@@ -307,7 +307,10 @@ ENDOFEND
   };
 }
 
-
+sub disconnect {
+  my $self = shift;
+  $self->{'BC'}->disconnect();
+}
 
 # Autoload methods go after =cut, and are processed by the autosplit program.
 

@@ -40,19 +40,23 @@ use strict;
 use LWP::Simple;
 use LWP::UserAgent;
 use HTTP::Request;
+use HTTP::Cookies;
 
-use vars qw($VERSION %BC);
+use vars qw($VERSION %BC $COOKIES);
 
-$VERSION = '0.02';
+$VERSION = '0.03';
 
 # Not sure about the usefulness of this hash, yet, but I'll
 # keep it for now. It keeps the BC implemention details visible.
 
 %BC = (
-        'listServers'     => '/invoke/sap.admin/listServers',
-        'listServiceMaps' => '/invoke/sap.admin/listServiceMaps',
+        'listServers'     => '/invoke/sap.admin.server/list',
+        'listServiceMaps' => '/invoke/sap.admin.map/list',
         'getProperties'   => '/WmRoot/server-environment.dsp',
+        'disconnect'      => '/invoke/wm.server/disconnect',
       );
+
+$COOKIES = new HTTP::Cookies(hide_cookie2 => 1);
 
 # The constructor.
 # Represents a Business Connector instance.
@@ -155,14 +159,15 @@ sub SAP_systems {
     $self->_prime_ua();
     my $req = HTTP::Request->new('GET', "$self->{'server'}$BC{'listServers'}");
     $req->authorization_basic($self->authentication);
+	$req = $self->{'ua'}->prepare_request($req);
     my $res =  $self->{'ua'}->request($req)->content()
         or die "Cannot retrieve server list: $!\n";
     $res =~ s/\n//g;
-    #print STDERR "The Server List: ".$res."\n";
+    # print STDERR "The Server List: ".$res."\n";
 
 #   Parse results for server names
     #foreach (grep(/$BC{'listServiceMaps'}/,split("\n",$res))) {
-    foreach (grep(/\>NAME/,split(/<\/TR>/,$res))) {
+    foreach (grep(/\>serverName/,split(/<\/TR>/,$res))) {
 #     print STDERR "LINE: $_ \n";
       #my ($sapsys) = $_ =~ m/$BC{'listServiceMaps'}\?serverName=(\w{3})/;
       my ($sapsys) = $_ =~ m/(\w+)<\/TD>.*?$/;
@@ -216,25 +221,27 @@ sub services {
   my $sys_list = shift || $self->SAP_systems();
 
   unless (exists($self->{'services'})) {
+	$self->_prime_ua();
 
 #   Prime
     $self->{'services'} = {};
 
 #   Invoke the map list service for each of the SAP systems
     foreach my $sys (@{$sys_list}) {
-      $self->_prime_ua();
       my $req = HTTP::Request->new('GET', "$self->{'server'}$BC{'listServiceMaps'}?serverName=$sys");
       $req->authorization_basic($self->authentication);
       my $res =  $self->{'ua'}->request($req)->content()
           or die "Cannot retrieve Service Map for $sys: $!\n";
       $res =~ s/\n//g;
-#      print STDERR "SERVICE LIST: $res \n";
+      #print STDERR "SERVICE LIST: $res \n";
       #my $res = get "$self->{'server'}$BC{'listServiceMaps'}?serverName=$sys" 
       #  or die "Cannot retrieve Service Map for $sys: $!\n";
 
       #foreach my $serviceMap (grep(/editServiceMap.*svcname/,split("\n",$res))) {
-      while  ( $res =~ m/serverName<\/b><\/td><td>([\w_]+).*?rfcname<\/b><\/td><td>(\w+).*?servicePath<\/b><\/td><td>(\w+).*?service<\/b><\/td><td>(\w+).*?package<\/b><\/td><td>(\w+)/gi) {
-      my ( $srvname, $rfcname, $srvpath, $service, $package ) = ( $1, $2, $3, $4, $5 );
+      while  ( $res =~ m/serverName<\/b><\/td><td>([\w_]+).*?outboundMaps<\/b><\/td>/gi) {
+      my ( $srvname, $outbm ) = ( $1, $' );
+      while  ( $outbm =~ m/functionName<\/b><\/td><td>(\w+).*?folder<\/b><\/td><td>([\w.]+).*?service<\/b><\/td><td>(\w+)/gi) {
+      my ( $rfcname, $srvpath, $service ) = ( $1, $2, $3 );
 #        print STDERR "LINE: $srvname $rfcname $srvpath $service $package \n";
 #        my ($sapsys, $rfcname, $service) = 
 #	        $serviceMap =~ m/^.*?serverName\=(.*?)\&.*?rfcname\=(.*?)\&.*?svcname\=(.*?)\&.*$/;
@@ -249,6 +256,7 @@ sub services {
 #                                          };
 
       }
+      }
 
     }
 
@@ -257,6 +265,26 @@ sub services {
   return $self->{'services'};
   
 }
+
+=pod
+
+=item B<disconnect()>
+
+Disconnects from the BC and frees the session.
+
+=cut
+
+sub disconnect {
+  my $self = shift;
+  my $ua = LWP::UserAgent->new(timeout => 5);
+  $ua->agent("sap::bc/$VERSION");
+  $ua->cookie_jar($COOKIES);
+  my $req = HTTP::Request->new('GET', "$self->{'server'}$BC{'disconnect'}");
+  $req->authorization_basic($self->authentication);
+  my $res = $ua->request($req);
+  return 1;
+}
+
 
 =pod
 
@@ -325,7 +353,7 @@ sub _prime_ua {
 
   $self->{'ua'} = LWP::UserAgent->new();
   $self->{'ua'}->agent("sap::bc/$VERSION");
-
+  $self->{'ua'}->cookie_jar($COOKIES);
 }
 
 
